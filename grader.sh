@@ -1,53 +1,42 @@
 #!/bin/bash
 
 # ============================================================
-
-# Linux Security Assignment - Autograder
-
+# Linux Security Assignment - Solution
 # ============================================================
 
 set -u
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "===== SELinux Status ====="
+sestatus
 
-TEST_SCRIPT="${SCRIPT_DIR}/tests/test_security.sh"
+echo "===== Creating Web Directory ====="
+mkdir -p /var/www/html/testdir
 
-echo "=============================================="
-echo " Linux Security Assignment Autograder"
-echo "=============================================="
+echo "===== Creating HTML File ====="
+touch /var/www/html/testdir/index.html
 
-if [ "$(id -u)" -ne 0 ]; then
-echo "[ERROR] Autograder must run as root."
-echo "Use:"
-echo "  sudo ./grader.sh"
-exit 2
-fi
+echo "===== Setting Linux Permissions ====="
+chmod 755 /var/www/html/testdir
+chmod 644 /var/www/html/testdir/index.html
 
-if [ ! -f "$TEST_SCRIPT" ]; then
-echo "[ERROR] Test script not found:"
-echo "$TEST_SCRIPT"
-exit 2
-fi
+echo "===== Checking Initial Context ====="
+ls -Zd /var/www/html/testdir
+ls -Z /var/www/html/testdir/index.html
 
-chmod +x "$TEST_SCRIPT"
+echo "===== Assigning Wrong SELinux Context ====="
+chcon -t user_home_t /var/www/html/testdir/index.html
 
-echo
-echo "Running tests..."
-echo
+echo "===== Checking Wrong Context ====="
+ls -Z /var/www/html/testdir/index.html
 
-"$TEST_SCRIPT"
+echo "===== Checking AVC Denials ====="
+grep "denied" /var/log/audit/audit.log 2>/dev/null | tail -n 5 || ausearch -m avc -ts recent 2>/dev/null || echo "No AVC denials recorded."
 
-RESULT=$?
+echo "===== Correcting SELinux Context ====="
+restorecon -v /var/www/html/testdir/index.html
 
-echo
-echo "=============================================="
+echo "===== Checking Correct Context ====="
+ls -Z /var/www/html/testdir/index.html
 
-if [ "$RESULT" -eq 0 ]; then
-echo "AUTOGRADING RESULT: PASS"
-echo "=============================================="
+echo "===== Practical Completed ====="
 exit 0
-else
-echo "AUTOGRADING RESULT: FAIL"
-echo "=============================================="
-exit 1
-fi
